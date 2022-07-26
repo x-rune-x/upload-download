@@ -1,8 +1,7 @@
 <template>
   <div>
-    <a href="">
-      <button>Download</button>
-    </a>    
+    <button @click="downloadFile">Download</button>
+    <a>Download</a>
   </div>
   <div>
     <input type="file" @change="changeFile">
@@ -14,15 +13,41 @@
 
 <script>
 import { db } from '../firebase/config'
-import { getBytes, ref as firebaseRef, uploadBytes } from '@firebase/storage'
-import { ref } from 'vue'
+import { getBytes, getDownloadURL, ref as firebaseRef, uploadBytes } from '@firebase/storage'
+import { onMounted, ref } from 'vue'
 
 export default {
   name: 'App',
 
   setup() {
     const fileToUpload = ref(null)
-    const message = ref(null)
+    const message = ref(null)  
+    const fileToDownload = ref(null) 
+
+    onMounted(() => {
+      console.log("Page mounted")
+      downloadFile()
+
+      const storageRef = firebaseRef(db, "testDoc.txt")
+      getDownloadURL(storageRef).then((url) => {
+        const xhr = new XMLHttpRequest();
+        xhr.responseType = 'blob';
+        xhr.onload = (event) => {
+          const blob = xhr.response;
+          var a = document.querySelector("a")
+          a.href = window.URL.createObjectURL(blob)
+          const date = new Date().toISOString()
+          console.log(date)
+          a.download = `testDoc${date}.txt`
+        };
+        xhr.open('GET', url);
+        xhr.send();
+        console.log(url)
+      })
+      .catch((error) => {
+        console.log(error.message)
+      })
+    })
 
     const changeFile = (file) => {
       const selected = file.target.files[0]
@@ -36,6 +61,7 @@ export default {
       await uploadBytes(storageRef, file).then((snapshot) => {
         console.log(snapshot)
         message.value = 'File uploaded successfully!'
+        document.querySelector('input').value=''
       }).catch((err) => {
         console.log(err)
         message.value = 'There was an error uploading the file.'
@@ -43,11 +69,14 @@ export default {
     }
 
     const downloadFile = async () => {
-      const pathReference = ref(db, 'testDoc.txt')
-      const file = getBytes(pathReference)
-    }
+      const pathReference = firebaseRef(db, 'testDoc.txt')
+      const file = await getBytes(pathReference)
+      console.log(file)
 
-    return { changeFile, storeFile, fileToUpload, message }
+      fileToDownload.value = file      
+    }    
+
+    return { changeFile, storeFile, downloadFile, fileToUpload, message, fileToDownload }
   }
   
 }
